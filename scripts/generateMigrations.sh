@@ -1,6 +1,9 @@
 #!/bin/bash
 
 
+
+echo "Rye shell is active."
+
 # Check if migra is installed
 if ! command -v migra &> /dev/null; then
     echo "migra is not installed. Please install it using 'rye install migra' and try again."
@@ -46,14 +49,21 @@ done
 create_db $DB_NAME_INIT
 psql -d $DB_NAME_INIT -f $INIT_SQL
 
-# Use migra to find the delta and generate migration files
-migra "postgresql:///$DB_NAME_INIT" "postgresql:///$DB_NAME_MIGRATED" --unsafe > "${MIGRATIONS_FOLDER}/${TIMESTAMP}_${UPGRADE_NAME}.up.sql"
-migra "postgresql:///$DB_NAME_MIGRATED" "postgresql:///$DB_NAME_INIT" --unsafe > "${MIGRATIONS_FOLDER}/${TIMESTAMP}_${UPGRADE_NAME}.down.sql"
+# Generate migration files
+migra "postgresql:///$DB_NAME_INIT" "postgresql:///$DB_NAME_MIGRATED" --unsafe > "${MIGRATIONS_FOLDER}/${TIMESTAMP}_${UPGRADE_NAME}.down.sql"
+migra "postgresql:///$DB_NAME_MIGRATED" "postgresql:///$DB_NAME_INIT" --unsafe > "${MIGRATIONS_FOLDER}/${TIMESTAMP}_${UPGRADE_NAME}.up.sql"
+
+# Check if the generated files are empty
+if [ ! -s "${MIGRATIONS_FOLDER}/${TIMESTAMP}_${UPGRADE_NAME}.up.sql" ] && [ ! -s "${MIGRATIONS_FOLDER}/${TIMESTAMP}_${UPGRADE_NAME}.down.sql" ]; then
+    # Delete empty files
+    rm "${MIGRATIONS_FOLDER}/${TIMESTAMP}_${UPGRADE_NAME}.up.sql" "${MIGRATIONS_FOLDER}/${TIMESTAMP}_${UPGRADE_NAME}.down.sql"
+    echo "No new changes detected. Empty migration files have been deleted."
+else
+    echo "Migration files generated:"
+    echo "${TIMESTAMP}_${UPGRADE_NAME}.up.sql"
+    echo "${TIMESTAMP}_${UPGRADE_NAME}.down.sql"
+fi
 
 # Clean up: drop the temporary databases
 drop_db $DB_NAME_MIGRATED
 drop_db $DB_NAME_INIT
-
-echo "Migration files generated:"
-echo "${TIMESTAMP}_${UPGRADE_NAME}.up.sql"
-echo "${TIMESTAMP}_${UPGRADE_NAME}.down.sql"
